@@ -334,9 +334,24 @@
 
   #scroll-container {
     flex: 1;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
     position: relative;
     touch-action: none;
+  }
+
+  #scroll-container::-webkit-scrollbar {
+    width: 8px;
+  }
+  #scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  #scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.2);
+    border-radius: 4px;
+  }
+  #scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,0.35);
   }
 
   #scroll-container::before,
@@ -402,6 +417,13 @@
     font-style: italic;
     font-size: 0.85em;
     opacity: 0.85;
+  }
+
+  #script-display .bullet {
+    padding-left: 1.5em;
+    text-indent: -1em;
+    margin-top: 0.15em;
+    margin-bottom: 0.15em;
   }
 
   #script-display .emphasis {
@@ -705,10 +727,15 @@
 
   /* ── Progress Bar ── */
   #progress-bar {
-    height: 3px;
+    height: 12px;
     background: rgba(255,255,255,0.05);
     position: relative;
     flex-shrink: 0;
+    cursor: pointer;
+  }
+
+  #progress-bar:hover {
+    background: rgba(255,255,255,0.1);
   }
 
   #progress-fill {
@@ -716,6 +743,7 @@
     background: var(--accent);
     width: 0%;
     transition: width 0.3s;
+    pointer-events: none;
   }
 
   /* ── Responsive ── */
@@ -1077,6 +1105,15 @@ Hello and welcome! Thank you for joining us today.
         continue;
       }
 
+      // Bullet points: •, -, *, or numbered (1. 2. etc)
+      if (/^[•·\-\*]\s/.test(line) || /^\d+[\.\)]\s/.test(line)) {
+        if (inParagraph) { html += '</p>'; inParagraph = false; }
+        let processed = escapeHtml(line);
+        processed = processed.replace(/\*\*(.+?)\*\*/g, '<span class="emphasis">$1</span>');
+        html += `<p class="bullet">${processed}</p>`;
+        continue;
+      }
+
       if (!inParagraph) { html += '<p>'; inParagraph = true; }
       else { html += ' '; }
 
@@ -1274,6 +1311,37 @@ Hello and welcome! Thank you for joining us today.
     progressFill.style.width = pct + '%';
     progressBar.setAttribute('aria-valuenow', Math.round(pct));
   }
+
+  // ── Progress bar seek (click & drag) ──
+  function seekToProgressPosition(e) {
+    const rect = progressBar.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+    scrollContainer.scrollTop = pct * maxScroll;
+    updateProgress();
+    updateTimeRemaining();
+  }
+
+  let isScrubbing = false;
+  progressBar.addEventListener('pointerdown', (e) => {
+    isScrubbing = true;
+    progressBar.setPointerCapture(e.pointerId);
+    progressFill.style.transition = 'none';
+    seekToProgressPosition(e);
+    e.stopPropagation();
+  });
+  progressBar.addEventListener('pointermove', (e) => {
+    if (!isScrubbing) return;
+    seekToProgressPosition(e);
+  });
+  progressBar.addEventListener('pointerup', () => {
+    isScrubbing = false;
+    progressFill.style.transition = 'width 0.3s';
+  });
+  progressBar.addEventListener('pointercancel', () => {
+    isScrubbing = false;
+    progressFill.style.transition = 'width 0.3s';
+  });
 
   function updateTimeRemaining() {
     const maxScroll = scrollContainer.scrollHeight - scrollContainer.clientHeight;
